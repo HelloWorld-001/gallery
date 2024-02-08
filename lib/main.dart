@@ -4,7 +4,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:gallery/media_viewer_age.dart';
 import 'package:gallery/selected_medium.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:photo_gallery/photo_gallery.dart';
@@ -143,6 +142,10 @@ class _HomePageState extends State<HomePage> {
                       for(var item in selectedItems) {
                         selected.add(media.items[item]);
                       }
+                      setState(() {
+                        isSelectable = false;
+                        selectedItems.clear();
+                      });
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -179,9 +182,19 @@ class _HomePageState extends State<HomePage> {
                             }
                           });
                         } else {
+                          List<Medium> selected = [];
+                          selected.add(medium);
+                          setState(() {
+                            isSelectable = false;
+                            selectedItems.clear();
+                          });
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => MediumViewerPage(medium: medium)),
+                            MaterialPageRoute(
+                              builder: (context) {
+                                return SelectedMedium(selected: selected);
+                              }
+                            )
                           );
                         }
                       },
@@ -227,5 +240,4 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
-
 }
