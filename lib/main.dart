@@ -197,7 +197,7 @@ class _HomePageState extends State<HomePage> {
                           Container(
                             color: Colors.grey[300],
                             child: FadeInImage(
-                              fit: BoxFit.fill,
+                              fit: BoxFit.cover,
                               placeholder: MemoryImage(kTransparentImage),
                               image: ThumbnailProvider(
                                 mediumId: medium.id,
@@ -209,8 +209,11 @@ class _HomePageState extends State<HomePage> {
                           if (isSelectable && selectedItems.contains(index))
                             Container(
                               height: double.maxFinite, width: double.maxFinite,
-                              color: Colors.black.withOpacity(0.45),
-                              child: Icon(Icons.done_rounded, size: 40, color: Colors.white.withOpacity(0.9),),
+                              color: Colors.black.withOpacity(0.45), alignment: Alignment.center,
+                              child: Text(
+                                (selectedItems.toList().indexOf(index) + 1).toString(),
+                                style: TextStyle(fontSize: 40, color: Colors.white)
+                              ),
                           ),
                         ],
                       ),
