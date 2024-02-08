@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:gallery/media_viewer_age.dart';
+import 'package:gallery/selected_medium.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:photo_gallery/photo_gallery.dart';
 import 'package:transparent_image/transparent_image.dart';
@@ -32,13 +33,15 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  List<Album>? _albums;
+  late List<Album> albums;
   bool loading = false;
   late Album selectedAlbum;
 
+  late MediaPage media;
+
   bool isSelectable = false;
   Set<int> selectedItems = {};
-  late List<Medium>? media;
+  late List<Medium> medium;
 
   @override
   void initState() {
@@ -49,12 +52,13 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> initAsync() async {
     if (await _promptPermissionSetting()) {
-      List<Album> albums = await PhotoGallery.listAlbums();
-      MediaPage mediaPage = await albums.first.listMedia();
+      List<Album> albumList = await PhotoGallery.listAlbums();
+      MediaPage mediaPage = await albumList.first.listMedia();
       setState(() {
-        selectedAlbum = albums.first;
-        _albums = albums;
-        media = mediaPage.items;
+        selectedAlbum = albumList.first;
+        albums = albumList;
+        media = mediaPage;
+        medium = mediaPage.items;
         loading = false;
       });
     }
@@ -100,7 +104,7 @@ class _HomePageState extends State<HomePage> {
               title: PopupMenuButton(// * Albums
                 itemBuilder: (context) {
                   return <PopupMenuItem>[
-                    ...?_albums?.map(
+                    ...albums.map(
                       (album) {
                         if (album.name == null) {
                           return PopupMenuItem(
@@ -110,10 +114,11 @@ class _HomePageState extends State<HomePage> {
                         }
                         return PopupMenuItem(
                           onTap: () async {
-                            var newMedia = await album.listMedia();
+                            MediaPage newMedia = await album.listMedia();
                             setState(() {
                               selectedAlbum = album;
-                              media = newMedia.items;
+                              media = newMedia;
+                              medium = newMedia.items;
                               selectedItems.clear();
                             });
                           },
@@ -132,10 +137,23 @@ class _HomePageState extends State<HomePage> {
               ),
               actions: [
                 if(isSelectable)
-                TextButton(
-                  onPressed: () {},
-                  child: Text("Next", style: TextStyle(color: Colors.blue, fontSize: 20)),
-                )
+                  TextButton(// * : Next Button
+                    onPressed: () {
+                      List<Medium> selected = [];
+                      for(var item in selectedItems) {
+                        selected.add(media.items[item]);
+                      }
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) {
+                            return SelectedMedium(selected: selected);
+                          }
+                        )
+                      );
+                    },
+                    child: Text("Next", style: TextStyle(color: Colors.blue, fontSize: 20)),
+                  )
               ],
             ),
             SliverGrid.count(
@@ -143,7 +161,7 @@ class _HomePageState extends State<HomePage> {
               mainAxisSpacing: 1.0,
               crossAxisSpacing: 1.0,
               children: <Widget>[
-                ...?media?.asMap().entries.map(
+                ...medium.asMap().entries.map(
                   (entry) {
                     int index = entry.key;
                     Medium medium = entry.value;
