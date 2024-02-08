@@ -4,27 +4,40 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:gallery/media_viewer_age.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:photo_gallery/photo_gallery.dart';
 import 'package:transparent_image/transparent_image.dart';
-import 'package:video_player/video_player.dart';
 
 void main() {
-  runApp(MyApp());
+  runApp(MainApp());
 }
 
-class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+class MainApp extends StatelessWidget {
+  const MainApp({super.key});
 
   @override
-  State<MyApp> createState() => _MyAppState();
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: HomePage(),
+    );
+  }
 }
 
-class _MyAppState extends State<MyApp> {
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
   List<Album>? _albums;
   bool loading = false;
   late Album selectedAlbum;
 
+  bool isSelectable = false;
+  Set<int> selectedItems = {};
   late List<Medium>? media;
 
   @override
@@ -68,8 +81,15 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      home: Scaffold(
+    return PopScope(
+      canPop: !isSelectable,
+      onPopInvoked: (didPop) {
+        setState(() {
+          isSelectable = false;
+          selectedItems.clear();
+        });
+      },
+      child: Scaffold(
         body: loading
         ? Center(
           child: CircularProgressIndicator(),
@@ -77,13 +97,16 @@ class _MyAppState extends State<MyApp> {
         : CustomScrollView(
           slivers: [
             SliverAppBar(
-              title: PopupMenuButton(
+              title: PopupMenuButton(// * Albums
                 itemBuilder: (context) {
                   return <PopupMenuItem>[
                     ...?_albums?.map(
                       (album) {
-                        if(album.name == null) {
-                          return PopupMenuItem(height: 0, child: SizedBox());
+                        if (album.name == null) {
+                          return PopupMenuItem(
+                            height: 0,
+                            child: SizedBox()
+                          );
                         }
                         return PopupMenuItem(
                           onTap: () async {
@@ -91,11 +114,12 @@ class _MyAppState extends State<MyApp> {
                             setState(() {
                               selectedAlbum = album;
                               media = newMedia.items;
+                              selectedItems.clear();
                             });
                           },
                           child: Text(album.name.toString()),
                         );
-                      }
+                      },
                     )
                   ];
                 },
@@ -106,30 +130,74 @@ class _MyAppState extends State<MyApp> {
                   ],
                 ),
               ),
+              actions: [
+                if(isSelectable)
+                TextButton(
+                  onPressed: () {},
+                  child: Text("Next", style: TextStyle(color: Colors.blue, fontSize: 20)),
+                )
+              ],
             ),
             SliverGrid.count(
-              crossAxisCount: 3,
+              crossAxisCount: 4,
               mainAxisSpacing: 1.0,
               crossAxisSpacing: 1.0,
               children: <Widget>[
-                ...?media?.map(
-                  (medium) => GestureDetector(
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (context) => ViewerPage(medium: medium)),
-                    ),
-                    child: Container(
-                      color: Colors.grey[300],
-                      child: FadeInImage(
-                        fit: BoxFit.cover,
-                        placeholder: MemoryImage(kTransparentImage),
-                        image: ThumbnailProvider(
-                          mediumId: medium.id,
-                          mediumType: medium.mediumType,
-                          highQuality: true,
-                        ),
+                ...?media?.asMap().entries.map(
+                  (entry) {
+                    int index = entry.key;
+                    Medium medium = entry.value;
+                    return GestureDetector(
+                      onTap: () {
+                        if (isSelectable) {
+                          setState(() {
+                            if (selectedItems.contains(index)) {
+                              selectedItems.remove(index);
+                              if(selectedItems.isEmpty) {
+                                isSelectable = false;
+                              }
+                            } else {
+                              selectedItems.add(index);
+                            }
+                          });
+                        } else {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => MediumViewerPage(medium: medium)),
+                          );
+                        }
+                      },
+                      onLongPress: () {
+                        setState(() {
+                          isSelectable = true;
+                          selectedItems.add(index);
+                        });
+                      },
+                      child: Stack(
+                        alignment: Alignment.center, fit: StackFit.expand,
+                        children: [
+                          Container(
+                            color: Colors.grey[300],
+                            child: FadeInImage(
+                              fit: BoxFit.fill,
+                              placeholder: MemoryImage(kTransparentImage),
+                              image: ThumbnailProvider(
+                                mediumId: medium.id,
+                                mediumType: medium.mediumType,
+                                highQuality: true,
+                              ),
+                            ),
+                          ),
+                          if (isSelectable && selectedItems.contains(index))
+                            Container(
+                              height: double.maxFinite, width: double.maxFinite,
+                              color: Colors.black.withOpacity(0.45),
+                              child: Icon(Icons.done_rounded, size: 40, color: Colors.white.withOpacity(0.9),),
+                          ),
+                        ],
                       ),
-                    ),
-                  ),
+                    );
+                  },
                 ),
               ],
             ),
@@ -138,103 +206,5 @@ class _MyAppState extends State<MyApp> {
       ),
     );
   }
-}
 
-class ViewerPage extends StatelessWidget {
-  final Medium medium;
-
-  const ViewerPage({super.key, required this.medium});
-
-  @override
-  Widget build(BuildContext context) {
-    DateTime? date = medium.creationDate ?? medium.modifiedDate;
-    return MaterialApp(
-      home: Scaffold(
-        appBar: AppBar(
-          leading: IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            icon: Icon(Icons.arrow_back_ios),
-          ),
-          title: date != null ? Text(date.toLocal().toString()) : null,
-        ),
-        body: Container(
-          alignment: Alignment.center,
-          child: medium.mediumType == MediumType.image
-              ? GestureDetector(
-                  onTap: () async {
-                    PhotoGallery.deleteMedium(mediumId: medium.id);
-                  },
-                  child: FadeInImage(
-                    fit: BoxFit.cover,
-                    placeholder: MemoryImage(kTransparentImage),
-                    image: PhotoProvider(mediumId: medium.id),
-                  ),
-                )
-              : VideoProvider(
-                  mediumId: medium.id,
-                ),
-        ),
-      ),
-    );
-  }
-}
-
-class VideoProvider extends StatefulWidget {
-  final String mediumId;
-
-  const VideoProvider({super.key, required this.mediumId});
-
-  @override
-  State<VideoProvider> createState() => _VideoProviderState();
-}
-
-class _VideoProviderState extends State<VideoProvider> {
-  VideoPlayerController? _controller;
-  File? _file;
-
-  @override
-  void initState() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      initAsync();
-    });
-    super.initState();
-  }
-
-  Future<void> initAsync() async {
-    try {
-      _file = await PhotoGallery.getFile(mediumId: widget.mediumId);
-      _controller = VideoPlayerController.file(_file!);
-      _controller?.initialize().then((_) {
-        // Ensure the first frame is shown after the video is initialized, even before the play button has been pressed.
-        setState(() {});
-      });
-    } catch (e) {
-      print("Failed : $e");
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return _controller == null || !_controller!.value.isInitialized
-        ? Container()
-        : Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              AspectRatio(
-                aspectRatio: _controller!.value.aspectRatio,
-                child: VideoPlayer(_controller!),
-              ),
-              TextButton(
-                onPressed: () {
-                  setState(() {
-                    _controller!.value.isPlaying ? _controller!.pause() : _controller!.play();
-                  });
-                },
-                child: Icon(
-                  _controller!.value.isPlaying ? Icons.pause : Icons.play_arrow,
-                ),
-              ),
-            ],
-          );
-  }
 }
